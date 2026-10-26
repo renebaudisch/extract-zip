@@ -1,5 +1,4 @@
 const debug = require('debug')('extract-zip')
-// eslint-disable-next-line node/no-unsupported-features/node-builtins
 const { constants, createWriteStream, promises: fs } = require('fs')
 const getStream = require('get-stream')
 const path = require('path')

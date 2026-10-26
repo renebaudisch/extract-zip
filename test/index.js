@@ -2,7 +2,7 @@ const extract = require('../')
 const fs = require('fs-extra')
 const os = require('os')
 const path = require('path')
-const test = require('ava')
+const test = require('ava').default;
 
 const catsZip = path.join(__dirname, 'cats.zip')
 const githubZip = path.join(__dirname, 'github.zip')

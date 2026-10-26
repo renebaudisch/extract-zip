@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-/* eslint-disable no-process-exit */
-
 var extract = require('./')
 
 var args = process.argv.slice(2)

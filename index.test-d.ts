@@ -1,14 +1,11 @@
 import { Entry, ZipFile } from 'yauzl';
-import * as extract from '.';
+import extract from './index';
 
 const zip = '/path/to/zip';
 const dir = '/path/to/dir';
 const defaultFileMode = 0o600;
 
-let options: extract.Options = {
-  dir,
-};
-options = {
+const options: extract.Options = {
   dir,
   defaultDirMode: 0o700,
   defaultFileMode,
