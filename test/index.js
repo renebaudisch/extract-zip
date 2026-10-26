@@ -112,7 +112,7 @@ if (process.platform !== 'win32') {
     await pathDoesntExist(t, path.join(dirPath, 'file.txt'), "file doesn't exist at symlink target")
 
     await t.throwsAsync(extract(symlinkDestZip, { dir: dirPath }), {
-      message: /Out of bound path ".*?" found while processing file symlink-dest\/aaa\/file.txt/
+      message: /Absolute symlink target "\/tmp" found while processing file symlink-dest\/aaa/
     })
   })
 
@@ -123,8 +123,8 @@ if (process.platform !== 'win32') {
     const symlinkDestDir = path.join(dirPath, 'symlink-dest')
 
     await pathExists(t, symlinkDestDir, 'target folder created')
-    await pathExists(t, path.join(symlinkDestDir, 'aaa'), 'symlink created')
-    await pathExists(t, path.join(symlinkDestDir, 'ccc'), 'parent folder created')
+    await pathDoesntExist(t, path.join(symlinkDestDir, 'aaa'), 'unsafe symlink rejected')
+    await pathDoesntExist(t, path.join(symlinkDestDir, 'ccc'), 'extraction stopped before next entry')
     await pathDoesntExist(t, path.join(symlinkDestDir, 'ccc/file.txt'), 'file not created in original folder')
     await pathDoesntExist(t, path.join(dirPath, 'file.txt'), 'file not created in symlink target')
   })
