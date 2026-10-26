@@ -1,6 +1,6 @@
 const debug = require('debug')('extract-zip')
 // eslint-disable-next-line node/no-unsupported-features/node-builtins
-const { createWriteStream, promises: fs } = require('fs')
+const { constants, createWriteStream, promises: fs } = require('fs')
 const getStream = require('get-stream')
 const path = require('path')
 const { promisify } = require('util')
@@ -74,6 +74,36 @@ class Extractor {
     })
   }
 
+  async checkPath (target, entry) {
+    const relative = path.relative(this.opts.dir, target)
+    if (path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+      throw new Error(`Out of bound path "${target}" found while processing file ${entry.fileName}`)
+    }
+
+    // Resolve existing ancestors too: the target itself may not exist yet.
+    let resolved
+    try {
+      resolved = await fs.realpath(target)
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err
+      // A dangling symlink is not a missing path and must not be followed.
+      const stats = await fs.lstat(target).catch(err => {
+        if (err.code !== 'ENOENT') throw err
+      })
+      if (stats && stats.isSymbolicLink()) {
+        throw new Error(`Dangling symlink "${target}" found while processing file ${entry.fileName}`)
+      }
+      const parent = path.dirname(target)
+      if (parent === target) throw err
+      return path.join(await this.checkPath(parent, entry), path.basename(target))
+    }
+    const canonicalRelative = path.relative(this.opts.dir, resolved)
+    if (path.isAbsolute(canonicalRelative) || canonicalRelative === '..' || canonicalRelative.startsWith(`..${path.sep}`)) {
+      throw new Error(`Out of bound path "${resolved}" found while processing file ${entry.fileName}`)
+    }
+    return resolved
+  }
+
   async extractEntry (entry) {
     /* istanbul ignore if */
     if (this.canceled) {
@@ -121,15 +151,35 @@ class Extractor {
     await fs.mkdir(destDir, mkdirOptions)
     if (isDir) return
 
+    if (!symlink) {
+      const existing = await fs.lstat(dest).catch(err => {
+        if (err.code !== 'ENOENT') throw err
+      })
+      if (existing && existing.isSymbolicLink()) {
+        throw new Error(`Refusing to overwrite symlink "${dest}"`)
+      }
+    }
+
     debug('opening read stream', dest)
     const readStream = await promisify(this.zipfile.openReadStream.bind(this.zipfile))(entry)
 
     if (symlink) {
       const link = await getStream(readStream)
+      if (path.isAbsolute(link)) {
+        throw new Error(`Absolute symlink target "${link}" found while processing file ${entry.fileName}`)
+      }
+      let target = await this.checkPath(path.dirname(dest), entry)
+      // Resolve each component before applying '..', including existing symlinks.
+      for (const component of link.split(path.sep)) {
+        target = await this.checkPath(path.resolve(target, component), entry)
+      }
       debug('creating symlink', link, dest)
       await fs.symlink(link, dest)
     } else {
-      await pipeline(readStream, createWriteStream(dest, { mode: procMode }))
+      await pipeline(readStream, createWriteStream(dest, {
+        mode: procMode,
+        flags: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
+      }))
     }
   }
 
